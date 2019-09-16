@@ -10,6 +10,7 @@ define([
 
     var defaultTokenCredit;
     var defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiMmQ0Y2Q5MC1kMDAxLTRmMGQtOTNiNC03NDBjN2Y2NjVkZjciLCJpZCI6MjU5LCJzY29wZXMiOlsiYXNyIiwiZ2MiXSwiaWF0IjoxNTY3NTIwOTE0fQ.84UrCVzvba9W_41CRxmtBwpRhzHf6Y89RlT-ZyW6Q-I';
+    var cesiumWebsiteToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIwNzhkNzgzZi0xZWY3LTRhODAtOTY0OC03YWZkZjc4NjIyYjkiLCJpZCI6MjU5LCJzY29wZXMiOlsiYXNyIiwiZ2MiXSwiaWF0IjoxNTY3NTQxOTk2fQ.gZeJFMFWrBwfUlHMEukXq4GyE68FISQP0j2q0yT04v0';
 
     /**
      * Default settings for accessing the Cesium ion API.
@@ -32,7 +33,7 @@ define([
      *
      * @type {String}
      */
-    Ion.defaultAccessToken = defaultAccessToken;
+    Ion.defaultAccessToken = cesiumWebsiteToken;
 
     /**
      * Gets or sets the default Cesium ion server.
