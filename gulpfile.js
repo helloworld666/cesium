@@ -108,10 +108,11 @@ gulp.task('build-watch', function() {
 });
 
 gulp.task('buildApps', function() {
-    return Promise.join(
-        buildCesiumViewer(),
-        buildSandcastle()
-    );
+    // return Promise.join(
+    //     buildCesiumViewer(),
+    //     buildSandcastle()
+    // );
+    return buildSandcastle();
 });
 
 gulp.task('clean', function(done) {
@@ -209,6 +210,15 @@ define(function() {\n\
 
 gulp.task('generateStubs', gulp.series('build', generateStubs));
 
+function combineForSandcastle() {
+    var outputDirectory = path.join('Build', 'Sandcastle', 'CesiumUnminified');
+    return combineJavaScript({
+        removePragmas : false,
+        optimizer : 'none',
+        outputDirectory : outputDirectory
+    });
+}
+
 function combine() {
     var outputDirectory = path.join('Build', 'CesiumUnminified');
     return combineJavaScript({
@@ -256,7 +266,7 @@ function generateDocumentation() {
 
 gulp.task('generateDocumentation', generateDocumentation);
 
-gulp.task('release', gulp.series('generateStubs', combine, minifyRelease, generateDocumentation));
+gulp.task('release', gulp.series('generateStubs', combineForSandcastle, generateDocumentation));
 
 gulp.task('makeZipFile', gulp.series('release', function() {
     //For now we regenerate the JS glsl to force it to be unminified in the release zip
@@ -363,9 +373,6 @@ gulp.task('deploy-s3', function(done) {
 
 // Deploy cesium to s3
 function deployCesium(cacheControl, done) {
-    done();
-    return;
-
     var bucketName = 'cesium.com';
     var refDocPrefix = 'docs/cesiumjs-ref-doc';
     var sandcastlePrefix = 'cesiumjs/sandcastle';
@@ -384,9 +391,9 @@ function deployCesium(cacheControl, done) {
     var uploaded = 0;
     var errors = [];
 
-    function uploadFiles(prefix, files) {
+    function uploadFiles(prefix, filePrefix, files) {
         return Promise.map(files, function(file) {
-            var blobName = prefix + '/' + file;
+            var blobName = prefix + '/' + file.replace(filePrefix, '');
             var mimeLookup = getMimeType(blobName);
             var contentType = mimeLookup.type;
             var compress = mimeLookup.compress;
@@ -434,24 +441,26 @@ function deployCesium(cacheControl, done) {
 
     var uploadSandcastle = globby([
         'Build/Apps/Sandcastle/**',
-        'Build/CesiumUnminified/**'
+        'Build/CesiumUnminified/**',
+        'Apps/SampleData/**',
+        'ThirdParty/**'
     ])
         .then(function(files) {
-            return uploadFiles(sandcastlePrefix, files);
+            return uploadFiles(sandcastlePrefix, 'Build/', files);
         });
 
     var uploadRefDoc = globby([
         'Build/Documentation/**'
     ])
         .then(function(files) {
-            return uploadFiles(refDocPrefix, files);
+            return uploadFiles(refDocPrefix, 'Build/Documentation/', files);
         });
 
     var uploadCesiumViewer = globby([
-        'Build/Apps/'
+        'Build/Apps/CesiumViewer/**'
     ])
         .then(function(files) {
-            return uploadFiles(cesiumViewerPrefix, files);
+            return uploadFiles(cesiumViewerPrefix, 'Build/Apps/CesiumViewer/', files);
         });
 
     Promise.join(uploadSandcastle, uploadRefDoc, uploadCesiumViewer)
@@ -1212,16 +1221,21 @@ function buildSandcastle() {
         '!Apps/Sandcastle/images/**',
         '!Apps/Sandcastle/gallery/**.jpg'
     ])
-    // Replace require Source with pre-built Cesium
-        .pipe(gulpReplace('../../../ThirdParty/requirejs-2.1.20/require.js', '../../../CesiumUnminified/Cesium.js'))
+    // For gallery items, replace require Source with pre-built Cesium
+        .pipe(gulpReplace('../../../ThirdParty/requirejs-2.1.20/require.js', '../CesiumUnminified/Cesium.js'))
+        .pipe(gulpReplace('../Build/CesiumUnminified', './CesiumUnminified'))
         // Use unminified cesium instead of source
         .pipe(gulpReplace('Source/Cesium', 'CesiumUnminified'))
+        .pipe(gulpReplace('../Apps/Sandcastle', '.'))
         // Fix relative paths for new location
-        .pipe(gulpReplace('../../Source', '../../../Source'))
-        .pipe(gulpReplace('../../ThirdParty', '../../../ThirdParty'))
-        .pipe(gulpReplace('../../SampleData', '../../../../Apps/SampleData'))
-        .pipe(gulpReplace('Build/Documentation', 'Documentation'))
-        .pipe(gulp.dest('Build/Apps/Sandcastle'));
+        .pipe(gulpReplace('../../../Source', '../CesiumUnminified'))
+        .pipe(gulpReplace('../../Source', '.'))
+        .pipe(gulpReplace('../../../ThirdParty', './ThirdParty'))
+        .pipe(gulpReplace('../../ThirdParty', './ThirdParty'))
+        .pipe(gulpReplace('../ThirdParty', './ThirdParty'))
+        .pipe(gulpReplace('../../SampleData', '../SampleData'))
+        .pipe(gulpReplace('../../Build/Documentation', '/docs/cesiumjs-ref-doc'))
+        .pipe(gulp.dest('Build/Sandcastle'));
 
     var imageStream = gulp.src([
         'Apps/Sandcastle/gallery/**.jpg',
@@ -1230,20 +1244,32 @@ function buildSandcastle() {
         base : 'Apps/Sandcastle',
         buffer : false
     })
-        .pipe(gulp.dest('Build/Apps/Sandcastle'));
+        .pipe(gulp.dest('Build/Sandcastle'));
+
+    var fileStream = gulp.src([
+        'ThirdParty/**'
+    ])
+        .pipe(gulp.dest('Build/Sandcastle/ThirdParty'));
+
+    var dataStream = gulp.src([
+        'Apps/SampleData/**'
+    ])
+        .pipe(gulp.dest('Build/Sandcastle/SampleData'));
 
     var standaloneStream = gulp.src([
         'Apps/Sandcastle/standalone.html'
     ])
-        .pipe(gulpReplace('../../ThirdParty/requirejs-2.1.20/require.js', '../../../ThirdParty/requirejs-2.1.20/require.js'))
+        .pipe(gulpReplace('../../../', '.'))
+        .pipe(gulpReplace('../../ThirdParty/requirejs-2.1.20/require.js', './ThirdParty/requirejs-2.1.20/require.js'))
+        .pipe(gulpReplace('../Build/CesiumUnminified', '../CesiumUnminified'))
         .pipe(gulpReplace('Source/Cesium', 'CesiumUnminified'))
-        .pipe(gulp.dest('Build/Apps/Sandcastle'));
+        .pipe(gulp.dest('Build/Sandcastle'));
 
-    return streamToPromise(mergeStream(appStream, imageStream, standaloneStream));
+    return streamToPromise(mergeStream(appStream, fileStream, dataStream, imageStream, standaloneStream));
 }
 
 function buildCesiumViewer() {
-    var cesiumViewerOutputDirectory = 'Build/Apps/CesiumViewer';
+    var cesiumViewerOutputDirectory = 'Build/CesiumViewer';
     var cesiumViewerStartup = path.join(cesiumViewerOutputDirectory, 'CesiumViewerStartup.js');
     var cesiumViewerCss = path.join(cesiumViewerOutputDirectory, 'CesiumViewer.css');
     mkdirp.sync(cesiumViewerOutputDirectory);
@@ -1296,18 +1322,18 @@ function buildCesiumViewer() {
             gulp.src(['ThirdParty/requirejs-2.1.20/require.min.js'])
                 .pipe(gulpRename('require.js')),
 
-            gulp.src(['Build/Cesium/Assets/**',
-                      'Build/Cesium/Workers/**',
-                      'Build/Cesium/ThirdParty/**',
-                      'Build/Cesium/Widgets/**',
-                      '!Build/Cesium/Widgets/**/*.css'],
+            gulp.src(['Build/Sandcastle/CesiumUnminified/Assets/**',
+                      'Build/Sandcastle/CesiumUnminified/Workers/**',
+                      'Build/Sandcastle/CesiumUnminified/ThirdParty/**',
+                      'Build/Sandcastle/CesiumUnminified/Widgets/**',
+                      '!Build/Sandcastle/CesiumUnminified/Widgets/**/*.css'],
                 {
-                    base : 'Build/Cesium',
+                    base : 'Build/Sandcastle/CesiumUnminified',
                     nodir : true
                 }),
 
-            gulp.src(['Build/Cesium/Widgets/InfoBox/InfoBoxDescription.css'], {
-                base : 'Build/Cesium'
+            gulp.src(['Build/Sandcastle/CesiumUnminified/Widgets/InfoBox/InfoBoxDescription.css'], {
+                base : 'Build/Sandcastle/CesiumUnminified'
             }),
 
             gulp.src(['web.config'])

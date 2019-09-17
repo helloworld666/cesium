@@ -15,17 +15,14 @@ script:
   - npm --silent run eslint
 
   - npm --silent run build
-  - npm --silent run coverage -- --browsers FirefoxHeadless --webgl-stub --failTaskOnError --suppressPassed
 
-  - travis_wait 20 npm --silent run makeZipFile -- --concurrency 1
+  - travis_wait 20 npm --silent run release -- --concurrency 1
   - npm pack &> /dev/null
 
   - npm --silent run buildApps
 
   - npm --silent run deploy-s3 -- -c 'public, max-age=1800' --confirm
   - npm --silent run deploy-status -- --status success --message Deployed
-
-  - npm --silent run test -- --browsers ChromeCI --failTaskOnError --webgl-stub --release --suppressPassed
 
 # Various Node.js smoke-screen tests
   - node -e "const Cesium = require('./');"
